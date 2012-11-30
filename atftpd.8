@@ -74,6 +74,13 @@ disable 'blksize' from RFC2348. This will prevent the server from
 acknowledging the 'blksize' request by the client.
 
 .TP
+.B \-\-allow\-wraparound
+Allow block ID wraparound when sending files. This allows you to send
+files larger than 2^16 * blksize if the client supports wraparound too
+pxelinux.0 needs this to use an initrd larger than 88MB as it hardcodes
+a blksize of 1492
+
+.TP
 .B \-\-no\-multicast
 disable 'multicast' from RFC2090. This will prevent the server from
 acknowledging the 'multicast' request by the client.

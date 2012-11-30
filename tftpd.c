@@ -890,6 +890,7 @@ int tftpd_cmd_line_options(int argc, char **argv)
           { "no-timeout", 0, NULL, 'T' },
           { "no-tsize", 0, NULL, 'S' },
           { "no-blksize", 0, NULL, 'B' },
+          { "allow-wraparound", 0, NULL, 'W' },
           { "no-multicast", 0, NULL, 'M' },
           { "logfile", 1, NULL, 'L' },
           { "pidfile", 1, NULL, 'I'},
@@ -965,6 +966,9 @@ int tftpd_cmd_line_options(int argc, char **argv)
                break;
           case 'B':
                tftp_default_options[OPT_BLKSIZE].enabled = 0;
+               break;
+          case 'W':
+               tftp_default_options[OPT_WRAPAROUND].enabled = 1;
                break;
           case 'M':
                tftp_default_options[OPT_MULTICAST].enabled = 0;
@@ -1219,6 +1223,7 @@ void tftpd_usage(void)
             "  --no-timeout               : disable 'timeout' from RFC2349\n"
             "  --no-tsize                 : disable 'tsize' from RFC2349\n"
             "  --no-blksize               : disable 'blksize' from RFC2348\n"
+            "  --allow-wraparound         : allow block ID's to wrap around when sending\n"
             "  --no-multicast             : disable 'multicast' from RFC2090\n"
             "  --logfile <file>           : logfile to log logs to ;-) (use - for stdout)\n"
             "  --pidfile <file>           : write PID to this file\n"

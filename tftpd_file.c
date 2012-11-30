@@ -411,6 +411,8 @@ int tftpd_send_file(struct thread_data *data)
      int timeout_state = state;
      int result;
      int block_number = 0;
+     unsigned short recv_number = 0;
+     int wraparound_offset = 0;
      int last_block = -1;
      int data_size;
      struct sockaddr_storage *sa = &data->client_info->client;
@@ -618,16 +620,18 @@ int tftpd_send_file(struct thread_data *data)
           logger(LOG_INFO, "blksize option -> %d", result);
      }
 
-     /* Verify that the file can be sent in 2^16 block of BLKSIZE octets */
-     if ((file_stat.st_size / (data->data_buffer_size - 4)) > 65535)
-     {
-          tftp_send_error(sockfd, sa, EUNDEF, data->data_buffer, data->data_buffer_size);
-          logger(LOG_NOTICE, "Requested file to big, increase BLKSIZE");
-          if (data->trace)
-               logger(LOG_DEBUG, "sent ERROR <code: %d, msg: %s>", EUNDEF,
-                      tftp_errmsg[EUNDEF]);
-          fclose(fp);
-          return ERR;
+     if(!data->tftp_options[OPT_WRAPAROUND].enabled) {
+         /* Verify that the file can be sent in 2^16 block of BLKSIZE octets */
+         if ((file_stat.st_size / (data->data_buffer_size - 4)) > 65535)
+         {
+              tftp_send_error(sockfd, sa, EUNDEF, data->data_buffer, data->data_buffer_size);
+              logger(LOG_NOTICE, "Requested file to big, increase BLKSIZE");
+              if (data->trace)
+                   logger(LOG_DEBUG, "sent ERROR <code: %d, msg: %s>", EUNDEF,
+                          tftp_errmsg[EUNDEF]);
+              fclose(fp);
+              return ERR;
+         }
      }
 
      /* multicast option */
@@ -933,10 +937,14 @@ int tftpd_send_file(struct thread_data *data)
                     }
                     /* The ACK is from the current client */
                     number_of_timeout = 0;
-                    block_number = ntohs(tftphdr->th_block);
+                    recv_number = ntohs(tftphdr->th_block);
+                    if(recv_number == 0 && block_number) {
+                        wraparound_offset += 0x10000;
+                    }
+                    block_number = wraparound_offset + recv_number;
                     if (data->trace)
-                         logger(LOG_DEBUG, "received ACK <block: %d>",
-                                block_number);
+                         logger(LOG_DEBUG, "received ACK <block: %d/%d>",
+                                recv_number, block_number);
                     if ((last_block != -1) && (block_number > last_block))
                     {
                          state = S_END;

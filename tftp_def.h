@@ -41,7 +41,8 @@
 #define OPT_BLKSIZE   4
 #define OPT_MULTICAST 5
 #define OPT_PASSWORD  6
-#define OPT_NUMBER    7         /* number of OPT_xx options */
+#define OPT_WRAPAROUND 7
+#define OPT_NUMBER    8         /* number of OPT_xx options */
 
 #define OPT_SIZE     12
 #define VAL_SIZE     MAXLEN
