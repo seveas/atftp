@@ -36,6 +36,8 @@
 #ifdef HAVE_PCRE
 #include "tftpd_pcre.h"
 #endif
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #define S_BEGIN         0
 #define S_SEND_REQ      1
@@ -60,6 +62,7 @@ extern int tftpd_cancel;
 extern tftpd_pcre_self_t *pcre_top;
 #endif
 
+extern char* content_generator;
 
 /*
  * Rules for filenames. This is common to both tftpd_recieve_file
@@ -434,6 +437,8 @@ int tftpd_send_file(struct thread_data *data)
      int prev_block_number = 0; /* needed to support netascii convertion */
      int prev_file_pos = 0;
      int temp = 0;
+     pid_t generator_pid = 0;
+     int generator_status;
 
      /* look for mode option */
      if (strcasecmp(data->tftp_options[OPT_MODE].value, "netascii") == 0)
@@ -491,6 +496,54 @@ int tftpd_send_file(struct thread_data *data)
           }
      }
 #endif
+     if (fp == NULL)
+     {
+          if (content_generator)
+          {
+               logger(LOG_DEBUG, "Trying to generate contents for %s", filename);
+               fp = tmpfile();
+               generator_pid = fork();
+               switch(generator_pid) {
+                   case 0:
+                       /* In the child */
+                       close(3);
+                       dup2(fileno(fp), 3);
+                       for(temp=4; temp < 1024; temp++)
+                           close(temp);
+                       execl(content_generator, content_generator, "--file", filename, (char *)NULL);
+                       /* Exec failed, make sure the parent notices */
+                       exit(66);
+                       ;;
+                   case -1:
+                       logger(LOG_WARNING, "fork() failed: %s", strerror(errno));
+                       fclose(fp);
+                       fp = NULL;
+                   default:
+                       /* In the parent */
+                       while(1) {
+                            errno = 0;
+                            temp = waitpid(generator_pid, &generator_status, 0);
+                            if(temp == -1 && errno == EINTR)
+                                continue;
+                            break;
+                       }
+                       if(!WIFEXITED(generator_status) || (WEXITSTATUS(generator_status) != 0)) {
+                            logger(LOG_WARNING, "generating content failed: %d %d", generator_status, WEXITSTATUS(generator_status));
+                            fclose(fp);
+                            fp = NULL;
+                       }
+                       else {
+                            fstat(fileno(fp), &file_stat);
+                            if(file_stat.st_size == 0) {
+                                 logger(LOG_WARNING, "content generator wrote 0 bytes");
+                                 fclose(fp);
+                                 fp = NULL;
+                            }
+                       }
+                       break;
+               }
+          }
+     }
      if (fp == NULL)
      {
           tftp_send_error(sockfd, sa, ENOTFOUND, data->data_buffer, data->data_buffer_size);

@@ -1,0 +1,61 @@
+Dynamically generating content with atftpd
+------------------------------------------
+
+When installing many machines via PXEboot kickstart/d-i installs, it is often
+useful to generate pxelinux.cfg files on demand with contents grabbed from a
+database. Or when you have an Asus Wl500g router, you have only tftp available
+to download data, being able to generate this data could be useful (eg. lists
+of macaddresses or iptables rules).
+
+These were my two use cases for implementing support for dynamic content in 
+atftpd. Here is how to use it:
+
+* Add the "--content-generator /path/to/executable" argument to the atftpd 
+  commandline (eg. in xinetd.conf or /etc/default/atftpd, depending on your
+  setup).
+* Whenever a requested file cannot be found, atftpd will open a temporary
+  file with tmpfile(3) and will execute your application, with the
+  requested name as arguments (example: 
+  /usr/local/bin/tftp-generator --file /var/lib/tftpboot/some_file)
+  The application must ignore unknown arguments, more arguments might be added
+  later.
+* Your application is now responsible for writing the content that atftpd
+  should send to the given fd (6 in the example). If the content needs to
+  be stored, your application also must do so itself.
+* If your application exists with a non-zero exitstatus or writes zero bytes,
+  atftpd will treat that as "file not found". If data is written and your
+  application exits with code 0, the written data is sent to the client.
+
+-- 
+Dennis Kaarsemaker
+<dennis@kaarsemaker.net>
+
+-------------------------------------------------------------------------------
+Example application for use case #2: Grabbing a list of mac addresses from a
+database. The database is maintained using the django framework.
+
+#!/usr/bin/python
+
+import os
+import sys
+from optparse import OptionParser
+
+parser = OptionParser()
+parser.add_option("--file", dest="filename", help="Requested file", metavar="FILE")
+options, args = parser.parse_args()
+
+if os.path.basename(options.filename) != 'maclist':
+    sys.exit(1)
+fd = os.fdopen(3, 'w')
+
+sys.path.insert(0,'/srv/www/intranet')
+os.environ['DJANGO_SETTINGS_MODULE'] = 'infra.settings'
+from infra.machine.models import Interface
+
+fd.write("""#!/bin/sh
+# Shellscript generated from infra database
+# Do not edit by hand
+
+wl mac none
+wl mac %s 00:00:00:00:00:00
+""" % ' '.join([x.mac for x in Interface.objects.filter(wireless=True)]))

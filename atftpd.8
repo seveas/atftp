@@ -162,6 +162,15 @@ will not start as usual but just read file name from stdin and
 printout the substitution.
 
 .TP
+.B \-\-content\-generator <path>
+Execute <path> to generate content for nonexisting files. If a
+requested file does not exist, the program will be called as <path>
+--file <requested file>. The generated contents must be written to
+file descriptor 3,  which will be opened by atftpd using tmpfile().
+If the contents need to be stored as well, the program itself is
+responsible for doing so, atftpd will not store the contents.
+
+.TP
 .B \-\-mtftp <file>
 This will start a mtftp server thread for each valid entry in the
 supplied file. See PXE specification for detail about mtftp. An
